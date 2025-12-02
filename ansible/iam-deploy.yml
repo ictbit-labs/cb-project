@@ -1,0 +1,68 @@
+---
+- name: Deploy IAM Policy and Role
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Load configuration
+      include_vars: config.yml
+
+    - name: Get IAM policy name
+      pause:
+        prompt: "Enter IAM policy name"
+      register: policy_input
+
+    - name: Get IAM role name  
+      pause:
+        prompt: "Enter IAM role name"
+      register: role_input
+
+    - name: Get S3 bucket name
+      pause:
+        prompt: "Enter S3 bucket name for policy permissions"
+      register: bucket_input
+
+    - name: Create Python virtual environment
+      shell: python3 -m venv .venv
+      args:
+        creates: .venv/bin/activate
+
+    - name: Install CDK requirements
+      shell: |
+        source .venv/bin/activate
+        pip install -r requirements.txt
+      args:
+        executable: /bin/bash
+
+    - name: CDK bootstrap (if needed)
+      shell: |
+        eval $(aws configure export-credentials --profile {{ cdk.profile }} --format env)
+        source .venv/bin/activate
+        cdk bootstrap --profile {{ cdk.profile }} aws://{{ cdk.account_id }}/{{ cdk.region }} --require-approval never --app "python3 iam-app.py"
+      args:
+        executable: /bin/bash
+
+    - name: Deploy IAM resources
+      shell: |
+        eval $(aws configure export-credentials --profile {{ cdk.profile }} --format env)
+        source .venv/bin/activate
+        cdk deploy --profile {{ cdk.profile }} --require-approval never --outputs-file iam-outputs.json --app "python3 iam-app.py"
+      environment:
+        CDK_DEFAULT_ACCOUNT: "{{ cdk.account_id }}"
+        CDK_DEFAULT_REGION: "{{ cdk.region }}"
+        CDK_STACK_NAME: "IAMStack"
+        IAM_POLICY_NAME: "{{ policy_input.user_input }}"
+        IAM_ROLE_NAME: "{{ role_input.user_input }}"
+        BUCKET_NAME: "{{ bucket_input.user_input }}"
+      args:
+        executable: /bin/bash
+
+    - name: Show outputs
+      shell: cat iam-outputs.json
+      register: outputs
+      ignore_errors: yes
+
+    - name: Display IAM ARNs
+      debug:
+        msg: "{{ outputs.stdout }}"
+      when: outputs.rc == 0

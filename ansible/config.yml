@@ -1,9 +1,8 @@
 ---
-# AWS SSO Configuration
-aws_sso:
-  start_url: "https://d-0000000000.awsapps.com/start"
-  region: "us-east-1" # SSO region
-  profile_name: "default"
-  session_name: "default"
-  cli_region: "eu-central-1"
-  output_format: "json"
+# CDK Configuration
+cdk:
+  region: ""
+  bucket_name: ""
+  stack_name: "CBProjectStack"
+  account_id: ""
+  profile: ""
