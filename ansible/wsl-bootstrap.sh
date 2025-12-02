@@ -4,7 +4,7 @@
 
 set -e
 
-echo "=== CB Project WSL Bootstrap ==="
+echo "=== WSL Bootstrap ==="
 echo "Setting up WSL Ubuntu/Debian environment..."
 
 # Check if running in WSL
@@ -42,4 +42,4 @@ echo "1. Run setup: ansible-playbook wsl-setup.yml -v"
 echo "2. Configure AWS: ansible-playbook wsl-aws-auth.yml"
 echo "3. Check status: ~/wsl-status.sh"
 echo ""
-echo "WSL environment is ready for CB Project deployment!"
+echo "WSL environment is ready"
