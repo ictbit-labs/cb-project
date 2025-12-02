@@ -18,6 +18,8 @@
       - python3-venv
       - python3-pip
       - python3-setuptools
+      - build-essential
+      - software-properties-common
 
   tasks:
     - name: Check OS compatibility
@@ -108,21 +110,6 @@
         state: present
       become: yes
       when: cdk_check.rc != 0
-
-
-
-    - name: Create Python virtual environment
-      pip:
-        name: pip
-        virtualenv: "{{ ansible_env.PWD }}/.venv"
-        virtualenv_command: python3 -m venv
-      ignore_errors: yes
-
-    - name: Install requirements if file exists
-      pip:
-        requirements: "{{ ansible_env.PWD }}/requirements.txt"
-        virtualenv: "{{ ansible_env.PWD }}/.venv"
-      ignore_errors: yes
 
     - name: Display installation summary
       debug:
