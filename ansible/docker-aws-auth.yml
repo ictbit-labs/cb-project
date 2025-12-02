@@ -1,0 +1,61 @@
+---
+- name: AWS SSO Authentication for Docker
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Load configuration
+      include_vars: config.yml
+
+    - name: Check if AWS CLI is available
+      command: aws --version
+      register: aws_check
+      failed_when: false
+      changed_when: false
+
+    - name: Fail if AWS CLI not installed
+      fail:
+        msg: "AWS CLI not found in container"
+      when: aws_check.rc != 0
+
+    - name: Configure AWS SSO
+      shell: |
+        aws configure sso --profile {{ aws_sso.profile_name }} << EOF
+        {{ aws_sso.start_url }}
+        {{ aws_sso.region }}
+        
+        
+        {{ aws_sso.cli_region }}
+        {{ aws_sso.output_format }}
+        EOF
+      args:
+        executable: /bin/bash
+
+    - name: Perform AWS SSO login
+      shell: aws sso login --profile {{ aws_sso.profile_name }}
+      args:
+        executable: /bin/bash
+
+    - name: Verify AWS authentication
+      shell: aws sts get-caller-identity --profile {{ aws_sso.profile_name }}
+      register: aws_identity
+      failed_when: false
+      changed_when: false
+
+    - name: Display authentication status
+      debug:
+        msg: |
+          AWS Authentication Status:
+          {% if aws_identity.rc == 0 %}
+          ✅ Successfully authenticated
+          Account: {{ (aws_identity.stdout | from_json).Account }}
+          User: {{ (aws_identity.stdout | from_json).UserId }}
+          {% else %}
+          ❌ Authentication failed
+          {% endif %}
+
+    - name: Set default profile
+      shell: |
+        aws configure set profile.default.region {{ aws_sso.cli_region }}
+        aws configure set profile.default.output {{ aws_sso.output_format }}
+      when: aws_identity.rc == 0

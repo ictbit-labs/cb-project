@@ -1,0 +1,48 @@
+---
+- name: Docker CDK S3 Deployment
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Load configuration
+      include_vars: config.yml
+
+    - name: Create Python virtual environment
+      shell: python3 -m venv .venv
+      args:
+        creates: .venv/bin/activate
+
+    - name: Install CDK requirements
+      shell: |
+        source .venv/bin/activate
+        pip install -r requirements.txt
+      args:
+        executable: /bin/bash
+
+    - name: CDK bootstrap
+      shell: |
+        source .venv/bin/activate
+        cdk bootstrap --profile {{ cdk.profile }} aws://{{ cdk.account_id }}/{{ cdk.region }} --require-approval never
+      environment:
+        CDK_BUCKET_NAME: "{{ cdk.bucket_name }}"
+      args:
+        executable: /bin/bash
+
+    - name: CDK deploy
+      shell: |
+        source .venv/bin/activate
+        cdk deploy --profile {{ cdk.profile }} --require-approval never --outputs-file cdk-outputs.json
+      environment:
+        CDK_BUCKET_NAME: "{{ cdk.bucket_name }}"
+      args:
+        executable: /bin/bash
+
+    - name: Show CDK outputs
+      shell: cat cdk-outputs.json
+      register: outputs
+      ignore_errors: yes
+
+    - name: Display outputs
+      debug:
+        msg: "{{ outputs.stdout }}"
+      when: outputs.rc == 0
