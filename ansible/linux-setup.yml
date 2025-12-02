@@ -9,6 +9,7 @@
       - sudo
       - curl
       - wget
+      - jq
       - git
       - unzip
       - rsync

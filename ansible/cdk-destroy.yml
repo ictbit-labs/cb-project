@@ -1,0 +1,20 @@
+---
+- name: Destroy AWS CDK Stack
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Load configuration
+      include_vars: config.yml
+
+    - name: CDK destroy
+      shell: |
+        eval $(aws configure export-credentials --profile {{ cdk.profile }} --format env)
+        source .venv/bin/activate
+        cdk destroy --profile {{ cdk.profile }} --force
+      args:
+        executable: /bin/bash
+
+    - name: Confirm destruction
+      debug:
+        msg: "CDK stack {{ cdk.stack_name }} has been destroyed"

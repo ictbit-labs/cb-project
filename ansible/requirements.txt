@@ -1,3 +1,4 @@
-ansible>=4.0.0
-pexpect>=4.8.0
-pywinrm>=0.4.0
+aws-cdk-lib
+boto3
+botocore
+constructs>=10.0.0

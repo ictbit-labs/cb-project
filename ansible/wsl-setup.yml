@@ -10,6 +10,7 @@
       - curl
       - wget
       - git
+      - jq
       - unzip
       - rsync
       - zip
@@ -121,18 +122,3 @@
       become: yes
       when: cdk_check.rc != 0
 
-    - name: Create Python virtual environment
-      pip:
-        name: pip
-        virtualenv: "{{ ansible_env.PWD }}/.venv"
-        virtualenv_command: python3 -m venv
-      ignore_errors: yes
-
-
-
-    - name: Create Python virtual environment
-      pip:
-        name: pip
-        virtualenv: "{{ ansible_env.PWD }}/.venv"
-        virtualenv_command: python3 -m venv
-      ignore_errors: yes
