@@ -136,33 +136,3 @@
         virtualenv: "{{ ansible_env.PWD }}/.venv"
         virtualenv_command: python3 -m venv
       ignore_errors: yes
-
-    - name: WSL-specific optimizations
-      block:
-        - name: Configure Git for WSL (if in WSL)
-          git_config:
-            name: "{{ item.name }}"
-            value: "{{ item.value }}"
-            scope: global
-          loop:
-            - { name: "core.autocrlf", value: "input" }
-            - { name: "core.filemode", value: "false" }
-          when: wsl_check.rc == 0
-
-        - name: Create WSL interop helper script
-          copy:
-            content: |
-              #!/bin/bash
-              # WSL Helper Script
-              echo "WSL Environment Ready!"
-              echo "AWS CLI: $(aws --version 2>/dev/null || echo 'Not installed')"
-              echo "Node.js: $(node --version 2>/dev/null || echo 'Not installed')"
-              echo "CDK: $(cdk --version 2>/dev/null || echo 'Not installed')"
-              echo "Python: $(python3 --version 2>/dev/null || echo 'Not installed')"
-            dest: "{{ ansible_env.HOME }}/wsl-status.sh"
-            mode: '0755'
-          when: wsl_check.rc == 0
-
-    - name: Display installation summary
-      debug:
-        msg: "WSL {{ ansible_distribution }} software installation completed successfully!"
