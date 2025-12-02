@@ -128,10 +128,13 @@
         virtualenv_command: python3 -m venv
       ignore_errors: yes
 
-    - name: Install requirements if file exists
+
+
+    - name: Create Python virtual environment
       pip:
-        requirements: "{{ ansible_env.PWD }}/requirements.txt"
+        name: pip
         virtualenv: "{{ ansible_env.PWD }}/.venv"
+        virtualenv_command: python3 -m venv
       ignore_errors: yes
 
     - name: WSL-specific optimizations
