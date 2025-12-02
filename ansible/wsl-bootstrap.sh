@@ -23,7 +23,7 @@ fi
 # Install Ansible if not present
 if ! command -v ansible &> /dev/null; then
     echo "Installing Ansible..."
-    sudo apt install -y ansible python3-pexpect
+    sudo apt install -y ansible python3-pexpect dos2unix
 fi
 
 
@@ -39,7 +39,8 @@ echo ""
 echo "=== Bootstrap Complete ==="
 echo "Next steps:"
 echo "1. Run setup: ansible-playbook wsl-setup.yml -v"
-echo "2. Configure AWS: ansible-playbook wsl-aws-auth.yml"
-echo "3. Check status: ~/wsl-status.sh"
+echo "2. Configure AWS SSO:"
+echo "   aws configure sso --profile default --no-browser"
+echo "   Then: aws sso login --profile default"
 echo ""
 echo "WSL environment is ready"
