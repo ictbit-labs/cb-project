@@ -1,0 +1,73 @@
+---
+- name: Linux AWS SSO authentication
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  tasks:
+    - name: Check if AWS CLI is available
+      command: aws --version
+      register: aws_check
+      failed_when: false
+      changed_when: false
+
+    - name: Fail if AWS CLI not installed
+      fail:
+        msg: "AWS CLI not found. Run linux-install.yml first."
+      when: aws_check.rc != 0
+
+    - name: Load AWS SSO configuration
+      include_vars: config.yml
+
+    - name: Check if AWS profile exists
+      shell: aws configure list-profiles | grep -w {{ aws_sso.profile_name }}
+      register: profile_exists
+      failed_when: false
+      changed_when: false
+
+    - name: Configure AWS SSO profile (first time)
+      expect:
+        command: aws configure sso --output={{ aws_sso.output_format }} --profile={{ aws_sso.profile_name }} --region={{ aws_sso.region }} --no-browser
+        responses:
+          'SSO session name \(Recommended\):': '{{ aws_sso.session_name }}'
+          'SSO start URL \[None\]:': '{{ aws_sso.start_url }}'
+          'SSO region \[None\]:': '{{ aws_sso.region }}'
+          'SSO registration scopes \[sso:account:access\]:': ''
+          'CLI default client Region \[None\]:': '{{ aws_sso.cli_region }}'
+          'CLI default output format \[None\]:': '{{ aws_sso.output_format }}'
+        timeout: 300
+      when: profile_exists.rc != 0
+      register: sso_setup
+
+    - name: Display SSO login instructions
+      debug:
+        msg: |
+          Please visit the URL and enter the code shown above to complete AWS SSO authentication.
+          Waiting for you to complete the browser authentication...
+      when: profile_exists.rc != 0
+
+    - name: AWS SSO login (existing profile)
+      shell: aws sso login --profile {{ aws_sso.profile_name }}
+      when: profile_exists.rc == 0
+
+    - name: Set AWS profile environment
+      lineinfile:
+        path: ~/.bashrc
+        line: 'export AWS_PROFILE={{ aws_sso.profile_name }}'
+        create: yes
+
+    - name: Verify AWS authentication
+      shell: aws sts get-caller-identity --profile {{ aws_sso.profile_name }}
+      register: aws_identity
+      ignore_errors: yes
+
+    - name: Display authentication summary
+      debug:
+        msg: |
+          AWS SSO authentication completed!
+          AWS Profile: {{ aws_sso.profile_name }}
+          {% if aws_identity.rc == 0 %}
+          AWS Account: {{ (aws_identity.stdout | from_json).Account }}
+          {% else %}
+          AWS Authentication: Please complete SSO login manually
+          {% endif %}
