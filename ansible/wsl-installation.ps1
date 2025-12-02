@@ -17,13 +17,23 @@ if ($WindowsVersion.Major -lt 10 -or ($WindowsVersion.Major -eq 10 -and $Windows
     exit 1
 }
 
-# Enable WSL feature
-Write-Host "Enabling WSL feature..." -ForegroundColor Blue
-dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+# Check if WSL is already enabled
+$wslFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux
+if ($wslFeature.State -eq "Enabled") {
+    Write-Host "WSL feature already enabled" -ForegroundColor Green
+} else {
+    Write-Host "Enabling WSL feature..." -ForegroundColor Blue
+    dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+}
 
-# Enable Virtual Machine Platform
-Write-Host "Enabling Virtual Machine Platform..." -ForegroundColor Blue
-dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+# Check if Virtual Machine Platform is already enabled
+$vmFeature = Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform
+if ($vmFeature.State -eq "Enabled") {
+    Write-Host "Virtual Machine Platform already enabled" -ForegroundColor Green
+} else {
+    Write-Host "Enabling Virtual Machine Platform..." -ForegroundColor Blue
+    dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+}
 
 # Download and install WSL2 Linux kernel update
 Write-Host "Downloading WSL2 Linux kernel update..." -ForegroundColor Yellow
@@ -42,17 +52,22 @@ try {
 Write-Host "Setting WSL 2 as default version..." -ForegroundColor Blue
 wsl --set-default-version 2
 
-# Install Ubuntu (default distribution)
-Write-Host "Installing Ubuntu distribution..." -ForegroundColor Blue
-try {
-    wsl --install -d Ubuntu --no-launch
-} catch {
-    Write-Host "Installing Ubuntu via Microsoft Store method..." -ForegroundColor Yellow
-    # Alternative method using winget if available
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        winget install Canonical.Ubuntu
-    } else {
-        Write-Host "Please install Ubuntu manually from Microsoft Store" -ForegroundColor Red
+# Check if Ubuntu is already installed
+$existingDistros = wsl --list --quiet 2>$null
+if ($existingDistros -match "Ubuntu") {
+    Write-Host "Ubuntu distribution already installed" -ForegroundColor Green
+} else {
+    Write-Host "Installing Ubuntu distribution..." -ForegroundColor Blue
+    try {
+        wsl --install -d Ubuntu --no-launch
+    } catch {
+        Write-Host "Installing Ubuntu via Microsoft Store method..." -ForegroundColor Yellow
+        # Alternative method using winget if available
+        if (Get-Command winget -ErrorAction SilentlyContinue) {
+            winget install Canonical.Ubuntu
+        } else {
+            Write-Host "Please install Ubuntu manually from Microsoft Store" -ForegroundColor Red
+        }
     }
 }
 

@@ -1,0 +1,165 @@
+---
+- name: WSL (Ubuntu/Debian) pre-deployment setup
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars:
+    required_packages:
+      - net-tools
+      - sudo
+      - curl
+      - wget
+      - git
+      - unzip
+      - rsync
+      - zip
+      - ca-certificates
+      - python3
+      - python3-venv
+      - python3-pip
+      - python3-setuptools
+      - build-essential
+      - software-properties-common
+
+  tasks:
+    - name: Check WSL environment
+      fail:
+        msg: "This playbook is designed for WSL Ubuntu/Debian environments"
+      when: >
+        (ansible_distribution != "Ubuntu" or ansible_distribution_version is version('20.04', '<')) and
+        (ansible_distribution != "Debian" or ansible_distribution_major_version|int < 11)
+
+    - name: Check if running in WSL
+      shell: grep -i microsoft /proc/version
+      register: wsl_check
+      failed_when: false
+      changed_when: false
+
+    - name: Display WSL status
+      debug:
+        msg: "Running in WSL environment: {{ 'Yes' if wsl_check.rc == 0 else 'No' }}"
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      become: yes
+
+    - name: Install system dependencies
+      apt:
+        name: "{{ required_packages }}"
+        state: present
+        force_apt_get: yes
+        dpkg_options: 'force-confold'
+      become: yes
+
+    - name: Check if AWS CLI is installed
+      command: aws --version
+      register: aws_cli_check
+      failed_when: false
+      changed_when: false
+
+    - name: Download and install AWS CLI v2
+      block:
+        - name: Download AWS CLI v2
+          get_url:
+            url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+            dest: "/tmp/awscliv2.zip"
+            mode: '0644'
+
+        - name: Extract AWS CLI
+          unarchive:
+            src: "/tmp/awscliv2.zip"
+            dest: "/tmp"
+            remote_src: yes
+
+        - name: Install AWS CLI
+          command: /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli --update
+          become: yes
+
+        - name: Clean up AWS CLI files
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/awscliv2.zip
+            - /tmp/aws
+      when: aws_cli_check.rc != 0
+
+    - name: Install NodeSource setup script
+      get_url:
+        url: https://deb.nodesource.com/setup_lts.x
+        dest: /tmp/nodesource_setup.sh
+        mode: '0755'
+      become: yes
+
+    - name: Run NodeSource setup script
+      command: /tmp/nodesource_setup.sh
+      become: yes
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+        dpkg_options: 'force-confold'
+      become: yes
+
+    - name: Check if AWS CDK is installed
+      command: cdk --version
+      register: cdk_check
+      failed_when: false
+      changed_when: false
+
+    - name: Install AWS CDK globally
+      npm:
+        name: aws-cdk
+        global: yes
+        state: present
+      become: yes
+      when: cdk_check.rc != 0
+
+    - name: Create Python virtual environment
+      pip:
+        name: pip
+        virtualenv: "{{ ansible_env.PWD }}/.venv"
+        virtualenv_command: python3 -m venv
+      ignore_errors: yes
+
+    - name: Install requirements if file exists
+      pip:
+        requirements: "{{ ansible_env.PWD }}/requirements.txt"
+        virtualenv: "{{ ansible_env.PWD }}/.venv"
+      ignore_errors: yes
+
+    - name: WSL-specific optimizations
+      block:
+        - name: Configure Git for WSL (if in WSL)
+          git_config:
+            name: "{{ item.name }}"
+            value: "{{ item.value }}"
+            scope: global
+          loop:
+            - { name: "core.autocrlf", value: "input" }
+            - { name: "core.filemode", value: "false" }
+          when: wsl_check.rc == 0
+
+        - name: Create WSL interop helper script
+          copy:
+            content: |
+              #!/bin/bash
+              # WSL Helper Script
+              echo "WSL Environment Ready!"
+              echo "AWS CLI: $(aws --version 2>/dev/null || echo 'Not installed')"
+              echo "Node.js: $(node --version 2>/dev/null || echo 'Not installed')"
+              echo "CDK: $(cdk --version 2>/dev/null || echo 'Not installed')"
+              echo "Python: $(python3 --version 2>/dev/null || echo 'Not installed')"
+            dest: "{{ ansible_env.HOME }}/wsl-status.sh"
+            mode: '0755'
+          when: wsl_check.rc == 0
+
+    - name: Display installation summary
+      debug:
+        msg: "WSL {{ ansible_distribution }} software installation completed successfully!"
