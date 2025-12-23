@@ -1,0 +1,29 @@
+  tasks:
+    # 1. SELF-RESOLVE COMMON.YML
+    # This script handles the logic of "region2 = region1" internally.
+    # It does NOT rely on Ansible loading variables.
+    - name: Resolve internal variables in common.yml
+      ansible.builtin.command:
+        argv:
+          - "{{ venv_path }}/bin/python3"
+          - "{{ role_path }}/files/resolve_config.py"
+          - "--source"
+          - "{{ source_file_path }}"  # Your vars/common.yml
+          - "--output"
+          - "{{ role_path }}/files/temp_resolved_source.yml"
+
+    # 2. RUN REPLACEHOLDER
+    # Now we feed the CLEAN file (temp_resolved_source.yml) to your tool.
+    - name: Generate Config
+      include_role:
+        name: replaceholder
+      vars:
+        source_file: "{{ role_path }}/files/temp_resolved_source.yml"
+        template_file: "{{ playbook_dir }}/templates/config.yml"
+        target_file: "{{ cloned_repo_path }}/config.yml"
+
+    # 3. CLEANUP
+    - name: Remove temp file
+      ansible.builtin.file:
+        path: "{{ role_path }}/files/temp_resolved_source.yml"
+        state: absent
