@@ -1,0 +1,48 @@
+  tasks:
+    # ------------------------------------------------------------------
+    # STEP 1: Load variables GLOBALLY
+    # This ensures 'region1' is available when Ansible tries to resolve 'region2'
+    # ------------------------------------------------------------------
+    - name: Load common vars globally (for resolution)
+      include_vars:
+        file: "{{ source_file_path }}"
+
+    # ------------------------------------------------------------------
+    # STEP 2: Load variables into a DICTIONARY
+    # Now that they are global, loading them again triggers the {{}} resolution.
+    # We store them in 'resolved_config' so we can dump them easily.
+    # ------------------------------------------------------------------
+    - name: Load common vars into dictionary
+      include_vars:
+        file: "{{ source_file_path }}"
+        name: resolved_config
+
+    # ------------------------------------------------------------------
+    # STEP 3: Save the Result
+    # We dump the fully resolved dictionary to a YAML file.
+    # 'to_yaml' creates a valid YAML structure.
+    # ------------------------------------------------------------------
+    - name: Generate Resolved Source File
+      ansible.builtin.copy:
+        content: "{{ resolved_config | to_yaml }}"
+        dest: "{{ role_path }}/files/temp_resolved_source.yml"
+
+    # ------------------------------------------------------------------
+    # STEP 4: Run Replaceholder
+    # Now we feed the CLEAN file to your Python script
+    # ------------------------------------------------------------------
+    - name: Generate Config
+      include_role:
+        name: replaceholder
+      vars:
+        source_file: "{{ role_path }}/files/temp_resolved_source.yml"
+        template_file: "{{ playbook_dir }}/templates/config.yml"
+        target_file: "{{ cloned_repo_path }}/config.yml"
+
+    # ------------------------------------------------------------------
+    # STEP 5: Cleanup
+    # ------------------------------------------------------------------
+    - name: Remove temp file
+      ansible.builtin.file:
+        path: "{{ role_path }}/files/temp_resolved_source.yml"
+        state: absent
