@@ -1,0 +1,23 @@
+  tasks:
+    # 1. Create/Update the Venv (Standard Task)
+    - name: Ensure Virtual Environment exists with Dependencies
+      ansible.builtin.pip:
+        requirements: "{{ cloned_repo_path }}/requirements.txt"
+        virtualenv: "{{ cloned_repo_path }}/.venv"
+        virtualenv_command: python3 -m venv
+
+    # 2. RUN CDK (The Fix: Activate AND Run together)
+    - name: Run CDK Synth inside Venv
+      ansible.builtin.shell: |
+        # 1. Activate the venv explicitly in THIS shell session
+        source .venv/bin/activate
+        
+        # 2. Verify we are using the right python (Optional debug)
+        which python
+        
+        # 3. Run the command
+        cdk synth
+      args:
+        chdir: "{{ cloned_repo_path }}"
+        executable: /bin/bash # Required for 'source' to work
+      register: cdk_output
