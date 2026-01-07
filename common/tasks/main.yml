@@ -1,0 +1,38 @@
+---
+# 1. Ask AWS for the Output Values
+- name: "Fetch Stack Outputs for {{ stack_name }}"
+  ansible.builtin.command: >
+    aws cloudformation describe-stacks 
+    --stack-name {{ stack_name }} 
+    --query "Stacks[0].Outputs" 
+    --output json
+  register: aws_cfn_result
+  changed_when: false
+
+# 2. Clean up the data (Ansible does this easily)
+- name: "Parse AWS Outputs to Dictionary"
+  ansible.builtin.set_fact:
+    _aws_outputs_dict: "{{ aws_cfn_result.stdout | from_json | items2dict(key_name='OutputKey', value_name='OutputValue') }}"
+
+# 3. Prepare the list of variables you want to update
+- name: "Map AWS Outputs to Common Variables"
+  ansible.builtin.set_fact:
+    _updates_payload: >-
+      {%- set result = {} -%}
+      {%- for common_key, aws_key in mapping.items() -%}
+        {%- if aws_key in _aws_outputs_dict -%}
+          {%- set _ = result.update({common_key: _aws_outputs_dict[aws_key]}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+
+# 4. RUN THE PYTHON SCRIPT (This is where main.yml calls the python file)
+- name: "Update Target Configuration File"
+  ansible.builtin.command:
+    argv:
+      - "{{ venv_path | default('.venv') }}/bin/python3"
+      - "{{ role_path }}/files/update_config.py"      # <--- LOOK HERE
+      - "--target"
+      - "{{ target_file | default('vars/common.yml') }}"
+      - "--data"
+      - "{{ _updates_payload | to_json }}"
