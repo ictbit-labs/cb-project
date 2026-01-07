@@ -1,73 +1,50 @@
----
-- name: Deploy and Sync Configuration
-  hosts: localhost
-  connection: local
-  gather_facts: no
-  vars:
-    # 1. SETUP: Define your paths and stack name
-    stack_name: "MY-COMPANY-STACK-NAME"  # <--- REPLACE THIS with the real Stack Name in AWS
-    common_vars_file: "vars/common.yml"
-    project_root: "../my-repo"
-    venv_path: "../my-repo/.venv"
+import sys
+import argparse
+import json
+import os
+from ruamel.yaml import YAML
 
-  tasks:
-    # ----------------------------------------------------------------
-    # 1. DEPLOY (Using your company's custom tool)
-    # ----------------------------------------------------------------
-    - name: Run Custom Deployment
-      ansible.builtin.shell: |
-        source .venv/bin/activate
-        # Replace this with the actual command you run manually
-        python3 deploy_wrapper.py 
-      args:
-        chdir: "{{ project_root }}"
-        executable: /bin/bash
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--target", required=True, help="Path to common.yml")
+    parser.add_argument("--data", required=True, help="JSON string of Key-Values to update")
+    args = parser.parse_args()
 
-    # ----------------------------------------------------------------
-    # 2. FETCH (Query AWS CloudFormation directly)
-    # ----------------------------------------------------------------
-    - name: Get Stack Outputs from AWS
-      ansible.builtin.command: >
-        aws cloudformation describe-stacks 
-        --stack-name {{ stack_name }} 
-        --query "Stacks[0].Outputs" 
-        --output json
-      register: aws_output
-      changed_when: false
+    # 1. Parse Data
+    try:
+        updates = json.loads(args.data)
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON Error: {e}")
+        sys.exit(1)
 
-    # ----------------------------------------------------------------
-    # 3. TRANSFORM (Convert List to Dictionary)
-    # AWS returns: [{'OutputKey': 'A', 'OutputValue': 'B'}]
-    # We want: {'A': 'B'}
-    # ----------------------------------------------------------------
-    - name: Parse AWS Outputs
-      ansible.builtin.set_fact:
-        stack_outputs: "{{ aws_output.stdout | from_json | items2dict(key_name='OutputKey', value_name='OutputValue') }}"
+    # 2. Setup YAML Loader (Preserves comments)
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    yaml.default_flow_style = False
 
-    # ----------------------------------------------------------------
-    # 4. MAP (Connect AWS Outputs to Your Variables)
-    # ----------------------------------------------------------------
-    - name: Map Outputs to Config Variables
-      ansible.builtin.set_fact:
-        vars_to_update:
-          # common.yml Key       : AWS Output Key
-          organization_id:         "{{ stack_outputs['OrganizationId'] }}"
-          security_account_id:     "{{ stack_outputs['SecurityAccountId'] }}"
-          vpc_id:                  "{{ stack_outputs['VpcId'] }}"
+    # 3. Read File
+    if not os.path.exists(args.target):
+        print(f"❌ File not found: {args.target}")
+        sys.exit(1)
 
-    # ----------------------------------------------------------------
-    # 5. UPDATE (Run the Python Script)
-    # ----------------------------------------------------------------
-    - name: Update common.yml file
-      ansible.builtin.command:
-        argv:
-          - "{{ venv_path }}/bin/python3"
-          - "roles/common/files/update_config.py"
-          - "--target"
-          - "{{ common_vars_file }}"
-          - "--data"
-          - "{{ vars_to_update | to_json }}"
+    with open(args.target, 'r') as f:
+        code = yaml.load(f) or {}
 
-    - name: Done
-      ansible.builtin.debug:
-        msg: "✅ common.yml updated! Next playbook is ready to run."
+    # 4. Update Values
+    print(f"📝 Updating {args.target}...")
+    for key, value in updates.items():
+        if key in code and code[key] != value:
+            print(f"   🔄 Updating: {key} -> {value}")
+            code[key] = value
+        elif key not in code:
+            print(f"   ➕ Adding: {key} -> {value}")
+            code[key] = value
+
+    # 5. Save
+    with open(args.target, 'w') as f:
+        yaml.dump(code, f)
+    
+    print("✅ Success.")
+
+if __name__ == "__main__":
+    main()
